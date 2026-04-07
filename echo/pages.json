@@ -1,0 +1,56 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "EchoSage",
+				"navigationStyle": "custom"
+			}
+		},
+	{
+		"path": "pages/chat/chat",
+		"style": {
+			"app-plus": {
+				"titleNView": {
+					"buttons": [{
+						"color": "#ffffff",
+						"fontSize": "28rpx",
+						"text": "🔄"
+					}]
+				},
+				"softinput": {
+					"adjustResize": true,
+					"adjustPan": false
+				}
+			},
+			"mp-alipay": {
+				"allowsBounceVertical": "NO"
+			},
+			"navigationBarTitleText": "英语对话练习",
+			"navigationBarBackgroundColor": "#007AFF",
+			"navigationBarTextStyle": "white",
+			"enablePullDownRefresh": false,
+			"backgroundColor": "#F5F5F5",
+			"adjustPosition": true,
+			"pageOrientation": "portrait"
+		}
+	},
+	{
+		"path": "pages/history/history",
+		"style": {
+			"navigationBarTitleText": "对话历史",
+			"navigationStyle": "custom",
+			"backgroundColor": "#F5F5F5"
+		}
+	}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "EchoSage",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F5F5F5",
+		"app-plus": {
+			"background": "#F5F5F5"
+		}
+	}
+}
