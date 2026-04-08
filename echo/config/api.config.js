@@ -6,9 +6,9 @@
 // 后端服务器地址配置
 export const API_CONFIG = {
   // 后端基础地址 - 修改此地址即可切换不同环境
-  BASE_URL: 'http://117.50.163.138:8000', // 开发环境 
-  // BASE_URL: 'https://api.echosage.com', // 生产环境
-  // BASE_URL: 'http://192.168.1.100:8000', // 本地网络测试
+  // BASE_URL: 'http://117.50.163.138:8000', // 开发环境 
+  // BASE_URL: 'https://api.echosage.com', // 生产环境 
+  BASE_URL: 'http://127.0.0.1:8000', // 本地测试 (若用真机调试请改为电脑局域网IP：http://10.132.190.161:8000)
 
   // API路径配置
   ENDPOINTS: {

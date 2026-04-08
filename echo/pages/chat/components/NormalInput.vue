@@ -15,19 +15,19 @@
       <view class="input-container" :class="{ 'voice-mode': isVoiceMode }">
         <!-- 文本输入模式 -->
         <view v-if="!isVoiceMode" class="text-input-wrapper">
-          <input
+          <textarea
             class="text-input"
-            v-model="inputText"
+            :value="inputText"
             placeholder="输入消息或点击语音按钮..."
-            confirm-type="send"
-            @confirm="handleSendText"
+            :auto-height="true"
+            :maxlength="-1"
             @input="handleInput"
             @focus="handleFocus"
             @blur="handleBlur"
             @keyboardheightchange="handleKeyboardHeightChange"
-            :disabled="disabled"
-            :cursor="cursor"
+            :disabled="disabled" 
           />
+
         </view>
 
         <!-- 语音输入模式 -->
@@ -520,6 +520,8 @@ defineExpose({
 
   .input-container {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
     border-radius: 24rpx;
     background-color: #F5F5F5;
     padding: 0 24rpx;
@@ -542,6 +544,13 @@ defineExpose({
         background-color: transparent;
         border: none;
         outline: none;
+        /* textarea 专属 */
+        resize: none;
+        line-height: 1.5;
+        min-height: 48rpx;
+        max-height: 240rpx;
+        overflow-y: auto;
+        word-break: break-all;
       }
 
       .emoji-btn {
@@ -619,13 +628,16 @@ defineExpose({
 
   .send-btn {
     width: 140rpx;
-    height: 60rpx;
-    border-radius: 30rpx;
+    min-width: 140rpx;
+    height: 72rpx;
+    border-radius: 36rpx;
     border: 2rpx solid #E5E5EA;
     background-color: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    margin-left: 8rpx;
     transition: all 0.3s ease;
 
     &.active {
