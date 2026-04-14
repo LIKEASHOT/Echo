@@ -3,6 +3,7 @@
     class="message-list"
     scroll-y="true"
     :scroll-top="scrollTop"
+    :scroll-into-view="scrollIntoView"
     :scroll-with-animation="true"
     @scrolltolower="handleScrollToLower"
   >
@@ -35,6 +36,7 @@
         <text class="empty-text">开始您的英语对话之旅吧！</text>
         <text class="empty-hint">点击下方录音按钮或输入文字开始对话</text>
       </view>
+      <view id="message-list-bottom-anchor" class="bottom-anchor"></view>
     </view>
 
   </scroll-view>
@@ -70,20 +72,18 @@ const emit = defineEmits(['play-audio', 'bubble-tap', 'load-more'])
 
 // 响应式数据
 const scrollTop = ref(0)
+const scrollIntoView = ref('')
 
 
 // 监听消息变化，自动滚动
-watch(() => props.messages.length, async (newLength, oldLength) => {
+watch(() => props.messages.length, (newLength, oldLength) => {
   console.log('MessageList: 消息数量变化', oldLength, '->', newLength)
   console.log('MessageList: 当前消息列表', props.messages.map(msg => ({ id: msg.id, type: msg.type, content: msg.content.substring(0, 20) })))
 
   if (newLength > oldLength && props.autoScroll) {
-    await nextTick()
     // 自动滚动到最新消息（通过设置scrollTop为一个大值）
     // 使用 nextTick 确保 DOM 更新后再滚动
-    nextTick(() => {
-      scrollTop.value = 99999
-    })
+    scrollToBottom()
   }
 })
 
@@ -130,7 +130,10 @@ const handleScrollToLower = () => {
 const scrollToBottom = () => {
   // 使用 nextTick 确保 DOM 更新后再滚动
   nextTick(() => {
-    scrollTop.value = 99999
+    scrollIntoView.value = ''
+    nextTick(() => {
+      scrollIntoView.value = 'message-list-bottom-anchor'
+    })
   })
 }
 
@@ -175,6 +178,10 @@ onMounted(() => {
   &.last-message {
     margin-bottom: 32rpx;
   }
+}
+
+.bottom-anchor {
+  height: 1rpx;
 }
 
 .loading-indicator {

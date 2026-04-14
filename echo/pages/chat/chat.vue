@@ -5,6 +5,7 @@
     
     <!-- 消息列表 -->
     <MessageList
+      v-show="currentMode === 'normal'"
       ref="messageListRef"
       :messages="messages"
       :mode="currentMode"
@@ -17,7 +18,7 @@
 
     <!-- 输入区域 -->
     <NormalInput
-      v-if="currentMode === 'normal'"
+      v-show="currentMode === 'normal'"
       ref="normalInputRef"
       :disabled="isLoading"
       @send-text="handleSendText"
@@ -26,14 +27,12 @@
       @stop-recording="stopVoiceRecording"
     />
 
-    <PhoneInput
-      v-else
-      ref="phoneInputRef"
-      :disabled="isLoading"
-      :is-recording="isRecording"
-      :recording-duration="recordingDuration"
-      @start-recording="startVoiceRecording"
-      @stop-recording="stopAndSendVoice"
+    <!-- 全双工通话层 -->
+    <FullDuplexScreen
+      v-if="currentMode === 'phone'"
+      :messages="messages"
+      @end-call="switchMode"
+      @sync-messages="handleDuplexMessages"
     />
   </view>
 </template>
@@ -43,7 +42,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { onLoad, onShow, onHide, onNavigationBarButtonTap } from '@dcloudio/uni-app'
 import MessageList from './components/MessageList.vue'
 import NormalInput from './components/NormalInput.vue'
-import PhoneInput from './components/PhoneInput.vue'
+import FullDuplexScreen from './components/FullDuplexScreen.vue'
 
 // 导入配置
 import { MODE_CONFIG } from '@/config/app.config.js'
@@ -156,6 +155,23 @@ const deleteHistoryById = (mode, historyId) => {
 	}
 }
 
+// 处理全双工通话同步回来的消息
+const handleDuplexMessages = (newMsgs) => {
+	if (!newMsgs || newMsgs.length === 0) return
+	const existingIds = new Set(messages.value.map(m => m.id))
+	let added = 0
+	for (const msg of newMsgs) {
+		if (!existingIds.has(msg.id)) {
+			messages.value.push(msg)
+			added++
+		}
+	}
+	if (added > 0) {
+		hasNewMessages = true
+		console.log(`[chat] 合并全双工消息 ${added} 条，立即保存`)
+		saveHistory()
+	}
+}
 
 const switchMode = async () => {
 	// 设置切换标记，阻止自动加载历史记录

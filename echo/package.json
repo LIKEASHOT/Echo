@@ -1,0 +1,17 @@
+{
+  "name": "echo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@ricky0123/vad-web": "^0.0.30",
+    "onnxruntime-web": "^1.24.3"
+  }
+}
