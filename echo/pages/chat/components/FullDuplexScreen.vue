@@ -161,6 +161,11 @@ const latestMessageSignature = computed(() => {
   const last = localMessages.value[localMessages.value.length - 1]
   return last ? `${localMessages.value.length}|${last.id}|${last.status}|${last.content}` : '0'
 })
+const propsMessagesSignature = computed(() => {
+  const first = props.messages[0]
+  const last = props.messages[props.messages.length - 1]
+  return `${props.messages.length}|${first ? first.id : ''}|${last ? last.id : ''}|${last ? last.status : ''}|${last ? last.content : ''}`
+})
 const connStatus = _connStatus
 const isMuted = ref(false)
 const isSpeaking = _isSpeaking
@@ -183,8 +188,22 @@ const scrollToBottom = async () => {
   scrollIntoView.value = 'duplex-bottom-anchor'
 }
 
+const isCurrentSessionMessage = (msg) => {
+  return _duplexSessionKey.value && String(msg.id || '').startsWith(`${_duplexSessionKey.value}_`)
+}
+
+const syncPropsMessages = () => {
+  const sessionMessages = localMessages.value.filter(isCurrentSessionMessage)
+  localMessages.value = [...props.messages, ...sessionMessages]
+  scrollToBottom()
+}
+
 watch(latestMessageSignature, () => {
   scrollToBottom()
+})
+
+watch(propsMessagesSignature, () => {
+  syncPropsMessages()
 })
 
 const dotClass = computed(() => ({
@@ -249,7 +268,7 @@ onMounted(() => {
   _isThinking.value = false
   _volumeLevel.value = 0
   
-  localMessages.value = [...props.messages]
+  syncPropsMessages()
   wsUrl.value = getWsUrl()
   setTimeout(scrollToBottom, 100)
 })
