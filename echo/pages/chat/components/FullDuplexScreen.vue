@@ -37,7 +37,11 @@
                      msg.status==='streaming' ? 'streaming-text' : '',
                      i === transcriptMessages.length-1 ? 'is-latest' : 'is-history']">
             <text class="role-name">{{ msg.isUser ? '我' : '英语陪练' }}</text>
-            <text class="content">{{ msg.content }}<text v-if="msg.interrupted" class="interrupted-mark">⋯</text></text>
+            <text class="content">
+              {{ msg.content }}
+              <text v-if="msg.status === 'streaming'" class="streaming-cursor">|</text>
+              <text v-if="msg.interrupted" class="interrupted-mark">⋯</text>
+            </text>
           </view>
         </view>
 
@@ -88,6 +92,38 @@ const _volumeLevel = ref(0)
 const _ttsChunk = ref('')
 const _intCmd = ref(0)
 const _duplexSessionKey = ref('')
+const _activeTurnId = ref('')
+const _interruptedTurnIds = new Set()
+const STREAM_CHAR_INTERVAL_MS = 70
+const STREAM_CHARS_PER_TICK = 1
+const _streamBuffers = new Map()
+const _streamTimers = new Map()
+const _streamFinals = new Map()
+
+const clearStreamForMsg = (msgId) => {
+  const timer = _streamTimers.get(msgId)
+  if (timer) clearInterval(timer)
+  _streamTimers.delete(msgId)
+  _streamBuffers.delete(msgId)
+  _streamFinals.delete(msgId)
+}
+
+const clearAllStreamState = () => {
+  _streamTimers.forEach(timer => clearInterval(timer))
+  _streamTimers.clear()
+  _streamBuffers.clear()
+  _streamFinals.clear()
+}
+
+const flushFinalStreams = () => {
+  _streamBuffers.forEach((buffer, msgId) => {
+    const msg = _localMessages.value.find(m => m.id === msgId)
+    if (!msg) return
+    msg.content += buffer
+    if (_streamFinals.get(msgId)) msg.status = 'sent'
+  })
+  clearAllStreamState()
+}
 
 export default {
   methods: {
@@ -107,18 +143,150 @@ export default {
       // 纯控制事件，不产生气泡
       if (['session_ready', 'turn_end'].includes(event)) return
 
-      if (event === 'ai_text') _isThinking.value = false
-
-      // interrupt 处理
       if (event === 'interrupt') {
-        const last = _localMessages.value.slice().reverse().find(m => !m.isUser && m.status === 'streaming')
-        if (last) { last.interrupted = true; last.status = 'sent' }
+        this.handleInterrupt(payload || {})
         return
       }
 
-      const isUser = event.includes('user')
+      if (event === 'user_text') {
+        this.handleUserText(payload || {})
+        return
+      }
+
+      if (event === 'ai_text_delta') {
+        this.handleAiTextDelta(payload || {})
+        return
+      }
+
+      if (event === 'ai_text') {
+        this.handleAiTextFinal(payload || {})
+        return
+      }
+
+      if (event === 'user_text_partial') {
+        this.upsertMessage(event, payload || {})
+        return
+      }
+
+      this.upsertMessage(event, payload || {})
+    },
+    toLocalMsgId(payload, isUser) {
       const rawId = payload.message_id || (payload.turn_id ? `${payload.turn_id}_${isUser ? 'user' : 'ai'}` : Date.now().toString())
-      const msgId = `${_duplexSessionKey.value || 'duplex'}_${rawId}`
+      return `${_duplexSessionKey.value || 'duplex'}_${rawId}`
+    },
+    isCurrentTurn(payload) {
+      if (!payload.turn_id) return true
+      if (_interruptedTurnIds.has(payload.turn_id)) return false
+      return !_activeTurnId.value || payload.turn_id === _activeTurnId.value
+    },
+    ensureStreamTimer(msgId) {
+      if (_streamTimers.has(msgId)) return
+      const timer = setInterval(() => {
+        const msg = _localMessages.value.find(m => m.id === msgId)
+        if (!msg) {
+          clearStreamForMsg(msgId)
+          return
+        }
+
+        const buffer = _streamBuffers.get(msgId) || ''
+        if (buffer.length > 0) {
+          msg.content += buffer.slice(0, STREAM_CHARS_PER_TICK)
+          _streamBuffers.set(msgId, buffer.slice(STREAM_CHARS_PER_TICK))
+          return
+        }
+
+        if (_streamFinals.get(msgId)) {
+          msg.status = 'sent'
+          clearStreamForMsg(msgId)
+        }
+      }, STREAM_CHAR_INTERVAL_MS)
+      _streamTimers.set(msgId, timer)
+    },
+    handleUserText(payload) {
+      if (payload.turn_id) {
+        _activeTurnId.value = payload.turn_id
+        _interruptedTurnIds.delete(payload.turn_id)
+      }
+      const msgId = this.toLocalMsgId(payload, true)
+      const existing = _localMessages.value.find(m => m.id === msgId)
+      if (existing) {
+        existing.content = payload.text || existing.content
+        existing.status = 'sent'
+        return
+      }
+      _localMessages.value.push({
+        id: msgId,
+        isUser: true,
+        content: payload.text || '',
+        status: 'sent',
+        interrupted: false,
+        turnId: payload.turn_id || ''
+      })
+    },
+    handleAiTextDelta(payload) {
+      if (!this.isCurrentTurn(payload)) return
+      _isThinking.value = false
+      const msgId = this.toLocalMsgId(payload, false)
+      if (_streamFinals.get(msgId)) return
+      let existing = _localMessages.value.find(m => m.id === msgId)
+      if (!existing) {
+        existing = {
+          id: msgId,
+          isUser: false,
+          content: '',
+          status: 'streaming',
+          interrupted: false,
+          turnId: payload.turn_id || ''
+        }
+        _localMessages.value.push(existing)
+      }
+      _streamBuffers.set(msgId, (_streamBuffers.get(msgId) || '') + (payload.delta || ''))
+      existing.status = 'streaming'
+      this.ensureStreamTimer(msgId)
+    },
+    handleAiTextFinal(payload) {
+      if (!this.isCurrentTurn(payload)) return
+      _isThinking.value = false
+      const msgId = this.toLocalMsgId(payload, false)
+      let existing = _localMessages.value.find(m => m.id === msgId)
+      if (!existing) {
+        existing = {
+          id: msgId,
+          isUser: false,
+          content: '',
+          status: 'sent',
+          interrupted: false,
+          turnId: payload.turn_id || ''
+        }
+        _localMessages.value.push(existing)
+      }
+      const currentBuffer = _streamBuffers.get(msgId) || ''
+      const finalText = payload.text || (existing.content + currentBuffer)
+      if (finalText.startsWith(existing.content)) {
+        _streamBuffers.set(msgId, finalText.slice(existing.content.length))
+      } else {
+        existing.content = ''
+        _streamBuffers.set(msgId, finalText)
+      }
+      _streamFinals.set(msgId, true)
+      existing.status = 'streaming'
+      this.ensureStreamTimer(msgId)
+    },
+    handleInterrupt(payload) {
+      const turnId = payload.turn_id || _activeTurnId.value
+      if (turnId) _interruptedTurnIds.add(turnId)
+      _localMessages.value.forEach(m => {
+        if (!m.isUser && m.status === 'streaming') {
+          clearStreamForMsg(m.id)
+          m.interrupted = true
+          m.status = 'sent'
+        }
+      })
+      _isThinking.value = false
+    },
+    upsertMessage(event, payload) {
+      const isUser = event.includes('user')
+      const msgId = this.toLocalMsgId(payload, isUser)
       let existing = _localMessages.value.find(m => m.id === msgId)
 
       if (!existing) {
@@ -126,7 +294,8 @@ export default {
           id: msgId, isUser,
           content: payload.text || '',
           status: payload.is_final ? 'sent' : 'streaming',
-          interrupted: false
+          interrupted: false,
+          turnId: payload.turn_id || ''
         }
         _localMessages.value.push(existing)
       } else {
@@ -255,6 +424,7 @@ const syncMessages = () => {
 }
 
 const endCall = () => {
+  flushFinalStreams()
   syncMessages()
   stopCmd.value = 'stop_' + Date.now()
   emit('end-call')
@@ -267,6 +437,9 @@ onMounted(() => {
   _isSpeaking.value = false
   _isThinking.value = false
   _volumeLevel.value = 0
+  _activeTurnId.value = ''
+  _interruptedTurnIds.clear()
+  clearAllStreamState()
   
   syncPropsMessages()
   wsUrl.value = getWsUrl()
@@ -274,6 +447,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  flushFinalStreams()
   syncMessages()
   stopCmd.value = 'stop_' + Date.now()
 })
@@ -422,7 +596,7 @@ export default {
       } else if (event === 'interrupt') {
         this.clearTts();
         this.safeCall('onSubtitle', JSON.stringify(data));
-      } else if (['user_text_partial', 'user_text', 'ai_text', 'session_ready', 'turn_end'].includes(event)) {
+      } else if (['user_text_partial', 'user_text', 'ai_text_delta', 'ai_text', 'session_ready', 'turn_end'].includes(event)) {
         this.safeCall('onSubtitle', JSON.stringify(data));
       }
     },
@@ -924,8 +1098,10 @@ export default {
   &.user-subtitle .content { color: #007AFF; }
   &.is-history { opacity: 0.4; transform: scale(0.92); filter: blur(0.5px); }
   &.is-latest { opacity: 1; transform: scale(1); animation: fadeUp 0.6s cubic-bezier(0.16,1,0.3,1); }
+  .streaming-cursor { display: inline-block; margin-left: 4rpx; animation: cursorBlink 1s step-end infinite; }
   .interrupted-mark { color: #FF3B30; opacity: 0.8; }
 }
+@keyframes cursorBlink { 50% { opacity: 0; } }
 @keyframes fadeUp {
   0% { opacity: 0; transform: translateY(30rpx) scale(0.96); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
