@@ -2,7 +2,7 @@
   <view class="message-bubble-wrapper" :class="{ 'user-message': isUser, 'ai-message': !isUser }">
     <!-- AI头像（仅AI消息显示） -->
     <view v-if="!isUser" class="avatar">
-      <text class="avatar-text">AI</text>
+      <image class="avatar-image" src="/static/avatar.png" mode="aspectFill"></image>
     </view>
 
     <!-- 消息内容 -->
@@ -241,9 +241,15 @@ const handlePlayTap = () => {
 
   &.ai-message {
     flex-direction: row;
+    padding-left: 16rpx;
 
     .message-content {
       align-items: flex-start;
+    }
+
+    .avatar {
+      margin-left: 0;
+      margin-right: 12rpx;
     }
   }
 }
@@ -252,16 +258,17 @@ const handlePlayTap = () => {
   width: 80rpx;
   height: 80rpx;
   border-radius: 50%;
-  background-color: #007AFF;
+  background-color: #F5F5F5;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 16rpx;
+  overflow: hidden;
 
-  .avatar-text {
-    color: white;
-    font-size: 24rpx;
-    font-weight: bold;
+  .avatar-image {
+    width: 100%;
+    height: 100%;
+    display: block;
   }
 }
 

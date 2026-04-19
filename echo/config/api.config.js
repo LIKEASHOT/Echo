@@ -8,8 +8,8 @@ export const API_CONFIG = {
   // 后端基础地址 - 修改此地址即可切换不同环境
   // BASE_URL: 'http://117.50.163.138:8000', // 开发环境 
   // BASE_URL: 'https://api.echosage.com', // 生产环境 
-  //BASE_URL: 'http://211.80.196.57:8000', // 线上测试
-  BASE_URL: 'http://127.0.0.1:8000',
+  BASE_URL: 'http://211.80.196.57:8000', // 线上测试
+  // BASE_URL: 'http://10.132.190.161:8000',
  
 
   // API路径配置
@@ -18,6 +18,8 @@ export const API_CONFIG = {
     SPEECH_TO_TEXT: '/api/speech-to-text',
     // 文本对话
     CHAT: '/api/chat',
+    // 当前模式 system prompt
+    SYSTEM_PROMPT: '/api/system-prompt',
     // 语音合成
     TEXT_TO_SPEECH: '/api/text-to-speech',
     // WebSocket连接（可选）

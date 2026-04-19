@@ -149,6 +149,29 @@ class ApiClient {
   }
 
   /**
+   * 获取当前导出上下文对应的动态 system prompt
+   * @param {Object} payload - 导出上下文
+   * @param {string} payload.mode - 对话模式
+   * @param {Array} payload.history - 当前聊天记录
+   * @param {string} payload.message - 最后一条用户输入
+   * @returns {Promise<string>}
+   */
+  async getSystemPrompt(payload = {}) {
+    const result = await this.request(API_CONFIG.ENDPOINTS.SYSTEM_PROMPT, {
+      mode: payload.mode || 'normal',
+      history: Array.isArray(payload.history) ? payload.history : [],
+      message: payload.message || ''
+    })
+
+    const prompt = result?.data?.system_prompt || result?.data?.prompt || result?.system_prompt || result?.prompt || ''
+    if (prompt) {
+      return String(prompt)
+    }
+
+    throw new Error(result.message || '获取system prompt失败')
+  }
+
+  /**
    * 文字转语音
    * @param {string} text - 要合成的文本
    * @param {Object} options - 语音选项
@@ -264,6 +287,7 @@ const apiClient = new ApiClient()
 export const apiRequest = apiClient.request.bind(apiClient)
 export const speechToText = apiClient.speechToText.bind(apiClient)
 export const sendChatMessage = apiClient.sendChatMessage.bind(apiClient)
+export const getSystemPrompt = apiClient.getSystemPrompt.bind(apiClient)
 export const textToSpeech = apiClient.textToSpeech.bind(apiClient)
 export const uploadFile = apiClient.uploadFile.bind(apiClient)
 export const updateApiBaseURL = apiClient.updateBaseURL.bind(apiClient)

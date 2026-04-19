@@ -16,6 +16,10 @@
 						"color": "#ffffff",
 						"fontSize": "28rpx",
 						"text": "🔄"
+					}, {
+						"color": "#ffffff",
+						"fontSize": "28rpx",
+						"text": "导出"
 					}]
 				},
 				"softinput": {

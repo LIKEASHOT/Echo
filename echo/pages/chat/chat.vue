@@ -2,6 +2,16 @@
   <view class="chat-page">
     <!-- 顶部占位，防止内容被导航栏遮挡 -->
     <view :style="{ height: windowTop + 'px' }"></view>
+
+    <!-- #ifdef H5 -->
+    <button
+      class="export-copy-button"
+      :style="{ top: exportButtonTop }"
+      @tap="handleExportChat"
+    >
+      导出
+    </button>
+    <!-- #endif -->
     
     <!-- 消息列表 -->
     <MessageList
@@ -52,7 +62,7 @@ import { API_CONFIG } from '@/config/api.config.js'
 import { useAudioStore } from '@/stores/audio.js'
 
 // 导入API工具
-import { sendChatMessage, speechToText, textToSpeech } from '@/utils/api.js'
+import { sendChatMessage, speechToText, textToSpeech, getSystemPrompt } from '@/utils/api.js'
 
 // 组件引用
 const messageListRef = ref(null)
@@ -109,6 +119,8 @@ const messageListHeight = computed(() => {
 	return `calc(100vh - ${windowTop.value}px)`
 })
 
+const exportButtonTop = computed(() => `${windowTop.value + 10}px`)
+
 // 键盘事件现在由输入框组件处理
 
 // 页面加载逻辑已在上面的onLoad中处理
@@ -123,6 +135,10 @@ onShow(() => {
 // 导航栏按钮点击处理
 onNavigationBarButtonTap((e) => {
 	console.log('导航栏按钮点击:', e)
+	if (e && (e.index === 1 || e.text === '导出')) {
+		handleExportChat()
+		return
+	}
 	switchMode()
 })
 
@@ -132,6 +148,139 @@ const updateNavigationBarTitle = () => {
 	uni.setNavigationBarTitle({
 		title
 	})
+}
+
+const getExportContent = (message) => {
+	const content = message?.recognizedText || message?.content || ''
+	return String(content).trim()
+}
+
+const buildExportHistory = () => {
+	return messages.value
+		.filter(msg => msg && !['error', 'failed', 'sending'].includes(msg.status))
+		.map(msg => ({
+			role: msg.isUser ? 'user' : 'assistant',
+			content: getExportContent(msg)
+		}))
+		.filter(msg => msg.content)
+}
+
+const getLastUserMessage = (history) => {
+	for (let i = history.length - 1; i >= 0; i--) {
+		if (history[i].role === 'user') {
+			return history[i].content
+		}
+	}
+	return ''
+}
+
+const buildTrainingMessages = async () => {
+	const history = buildExportHistory()
+	const lastUserMessage = getLastUserMessage(history)
+
+	if (!lastUserMessage) {
+		return []
+	}
+
+	const systemPrompt = (await getSystemPrompt({
+		mode: currentMode.value,
+		history,
+		message: lastUserMessage
+	})).trim()
+
+	if (!systemPrompt) {
+		throw new Error('后端未返回system prompt')
+	}
+
+	const trainingMessages = [{
+		role: 'system',
+		content: systemPrompt
+	}]
+
+	trainingMessages.push(...history)
+
+	return trainingMessages
+}
+
+const copyWithLegacyClipboard = (text) => {
+	if (typeof document === 'undefined') return false
+
+	const textarea = document.createElement('textarea')
+	textarea.value = text
+	textarea.setAttribute('readonly', '')
+	textarea.style.position = 'fixed'
+	textarea.style.left = '-9999px'
+	textarea.style.top = '-9999px'
+	document.body.appendChild(textarea)
+	textarea.select()
+
+	let copied = false
+	try {
+		copied = document.execCommand('copy')
+	} catch (error) {
+		console.error('fallback复制失败:', error)
+	}
+
+	document.body.removeChild(textarea)
+	return copied
+}
+
+const copyTextToClipboard = (text) => {
+	return new Promise((resolve, reject) => {
+		uni.setClipboardData({
+			data: text,
+			success: resolve,
+			fail: (error) => {
+				if (copyWithLegacyClipboard(text)) {
+					resolve()
+				} else {
+					reject(error)
+				}
+			}
+		})
+	})
+}
+
+const handleExportChat = async () => {
+	try {
+		uni.showLoading({
+			title: '导出中',
+			mask: true
+		})
+
+		const trainingMessages = await buildTrainingMessages()
+
+		if (trainingMessages.length < 2) {
+			uni.hideLoading()
+			uni.showToast({
+				title: '内容不足',
+				icon: 'none',
+				duration: 1600
+			})
+			return
+		}
+
+		const jsonlLine = JSON.stringify({
+			messages: trainingMessages
+		})
+
+		await copyTextToClipboard(`${jsonlLine}\n`)
+		console.log('[export] JSONL copied:', jsonlLine)
+		uni.hideLoading()
+		uni.showToast({
+			title: '已复制JSONL',
+			icon: 'success',
+			duration: 1600
+		})
+	} catch (error) {
+		uni.hideLoading()
+		console.error('导出聊天记录失败:', error)
+		uni.showToast({
+			title: error.message || '导出失败',
+			icon: 'error',
+			duration: 1800
+		})
+	}
 }
 
 // 快速切换模式（延续当前对话）
@@ -1100,6 +1249,29 @@ const toggleMode = () => {
   /* 防止页面在键盘弹出时滚动 */
   overflow: hidden;
   padding-top: 0;
+}
+
+.export-copy-button {
+  position: fixed;
+  right: 20rpx;
+  z-index: 1200;
+  height: 56rpx;
+  min-width: 92rpx;
+  padding: 0 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8rpx;
+  background-color: #007AFF;
+  color: #FFFFFF;
+  font-size: 24rpx;
+  line-height: 56rpx;
+  box-shadow: 0 6rpx 18rpx rgba(0, 122, 255, 0.22);
+
+  &::after {
+    border: 0;
+  }
 }
 
 

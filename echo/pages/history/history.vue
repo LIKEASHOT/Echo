@@ -29,7 +29,7 @@
 			</view>
 		</view>
 
-		<!-- 历史记录列表 -->
+		<!-- 历史记录列表 --> 
 		<view class="history-list">
 			<!-- 加载状态 -->
 			<view v-if="loading" class="loading-state">
